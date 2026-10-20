@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 
-from strands.interventions import Guide, InterventionHandler, Proceed
+from strands.interventions import Guide, InterventionHandler, Proceed, Transform
 
 from .client import DeciderClient
 from .questions import GROUNDED_MIN, QUESTIONS, SPOIL_BLOCK, build_state
@@ -25,6 +25,12 @@ SPOIL_FEEDBACK = (
 OFF_TOPIC_FEEDBACK = (
     "Blocked by the Socratic guardrail: that reply does not address what the student asked. "
     "Re-read the student's last message and answer that, as a hint. Then call send_to_student again."
+)
+
+# Sent instead of the model's draft when it keeps spoiling after max_rewrites (fail closed).
+FALLBACK_REPLY = (
+    "I can't hand you the finished solution, but let's get there together. "
+    "What have you tried so far, and which part feels stuck?"
 )
 
 
@@ -59,11 +65,13 @@ class SocraticGuardrail(InterventionHandler):
         self.log_path = Path(log_path) if log_path else None
         self.rewrites = 0
         self.last_decision: dict | None = None
+        self.decisions: list[dict] = []  # every check made during the current turn
 
     def new_turn(self) -> None:
         """Call once per student message so the rewrite budget resets."""
         self.rewrites = 0
         self.last_decision = None
+        self.decisions = []
 
     def before_tool_call(self, event, **kwargs):
         tool_use = event.tool_use
@@ -83,9 +91,10 @@ class SocraticGuardrail(InterventionHandler):
         else:
             verdict, feedback = "proceed", None
 
-        if feedback and self.rewrites >= self.max_rewrites:
-            # Out of retries: let it through but mark it, so the UI can show a warning.
-            verdict, feedback = "proceed_after_max_rewrites", None
+        out_of_retries = feedback is not None and self.rewrites >= self.max_rewrites
+        if out_of_retries:
+            # Out of retries: never deliver the spoiler, send a safe Socratic fallback instead.
+            verdict, feedback = "fallback", None
 
         self.last_decision = {
             "student": student,
@@ -96,11 +105,17 @@ class SocraticGuardrail(InterventionHandler):
             "verdict": verdict,
             "rewrite": self.rewrites,
         }
+        self.decisions.append(self.last_decision)
         self._log(self.last_decision)
 
         if feedback:
             self.rewrites += 1
             return Guide(feedback=feedback)
+        if out_of_retries:
+            return Transform(
+                apply=lambda e: e.tool_use["input"].__setitem__("message", FALLBACK_REPLY),
+                reason="replaced spoiler with fallback hint",
+            )
         return Proceed()
 
     def _log(self, record: dict) -> None:
