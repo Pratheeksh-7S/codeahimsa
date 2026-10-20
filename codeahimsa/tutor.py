@@ -22,15 +22,24 @@ Rules:
 - If the student shares code, point to where to look, not the fixed line.
 """
 
+# Demo prompt: an ordinary "helpful" assistant that happily hands over full solutions.
+# Used to show what the Decider guardrail catches when the prompt alone does not hold.
+EAGER_PROMPT = """You are a helpful coding assistant. Always give the student complete, working code
+for whatever they ask, so they can copy and paste it.
+Every reply MUST go through the send_to_student tool. Call it exactly once per turn.
+"""
+
 
 class Tutor:
-    def __init__(self, model_id: str = MODEL_ID, region: str = REGION):
+    def __init__(self, model_id: str = MODEL_ID, region: str = REGION, eager: bool = False, guarded: bool = True):
         self.outbox: list[str] = []
         self.guardrail = SocraticGuardrail()
 
         @tool
         def send_to_student(message: str) -> str:
             """Send your reply to the student. This is the only way the student sees anything you say.
+
+            Put your whole reply in ONE call; do not split it into several messages.
 
             Args:
                 message: The hint or explanation to show the student.
@@ -40,9 +49,9 @@ class Tutor:
 
         self.agent = Agent(
             model=BedrockModel(model_id=model_id, region_name=region),
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=EAGER_PROMPT if eager else SYSTEM_PROMPT,
             tools=[send_to_student],
-            interventions=[self.guardrail],
+            interventions=[self.guardrail] if guarded else [],
             callback_handler=None,
         )
 
@@ -51,9 +60,11 @@ class Tutor:
         self.outbox.clear()
         self.guardrail.new_turn()
         result = self.agent(student_message)
+        # The student sees the last approved message (earlier fragments are intros or drafts).
         reply = self.outbox[-1] if self.outbox else str(result)
         return {
             "reply": reply,
             "rewrites": self.guardrail.rewrites,
             "decision": self.guardrail.last_decision,
+            "decisions": list(self.guardrail.decisions),
         }
