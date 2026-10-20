@@ -4,7 +4,7 @@ A campus coding-practice tutor for beginners that refuses to hand over the answe
 Amazon Bedrock does the tutoring; **Strands Decider 2B** checks every reply before the student sees it,
 and blocks replies that would spoil the exercise. Pattern: **#guardrails** · #strands-decider-2b
 
-▶️ **Demo video (2:54):** https://youtu.be/l1YLZODMKss
+▶️ **Demo video (2:54):** https://youtu.be/l1YLZODMKss · 📝 **Article:** https://builder.aws.com/content/3KyAns22GI2cTR72KsEaSkpfv9A/codeahimsa-a-coding-tutor-that-refuses-to-hand-over-the-answer-guarded-by-strands-decider-2b
 
 ## Results
 Decider 2B vs. a Bedrock LLM judge on 16 labeled replies: both 16/16, Decider at zero Bedrock tokens. See [`docs/results.md`](docs/results.md) (`python scripts/evaluate.py`).
