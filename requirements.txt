@@ -1,3 +1,4 @@
 strands-agents>=1.61
 strands-decider>=0.2
 httpx>=0.28
+streamlit>=1.40
