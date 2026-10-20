@@ -14,7 +14,7 @@ QUESTIONS = {
 
 # Policy thresholds. Tuned on our own test prompts; see docs/results.md.
 SPOIL_BLOCK = 0.60  # spoils_solution >= this  -> send back as a hint
-GROUNDED_MIN = 0.45  # grounded < this          -> send back to stay on topic
+GROUNDED_MIN = 0.30  # grounded < this          -> send back to stay on topic
 
 
 def build_state(student_message: str, proposed_reply: str) -> str:
